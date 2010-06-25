@@ -1,0 +1,15 @@
+# presque-clj
+
+Clojure client for presque persistent messaging system
+
+## Usage
+
+FIXME: write
+
+## Installation
+
+FIXME: write
+
+## License
+
+Licensed under the same terms as Clojure. See COPYING
