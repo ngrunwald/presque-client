@@ -3,6 +3,13 @@
         [clojure.contrib.json]
         [clojure.contrib.condition]))
 
+(defn format-params
+  [params]
+  (if (> (count params) 0)
+    (str "?" (apply str (map #(str "&" (name (first %)) "=" (second %)) (partition 2 params))))
+    ""))
+  
+
 (defn connect-presque
   [& [url headers]]
   {:base-url (or url "http://localhost:5000/")
@@ -11,11 +18,14 @@
    :read-timeout 5000})
 
 (defn agent-request
-  [path method conn & [body]]
-  (let [url (str (:base-url conn) path)]
+  [path method conn & rest]
+  (let [args (apply hash-map rest)
+        url (str (:base-url conn)
+                 path
+                 (format-params (:params args)))]
     (http-agent url
                 :method method
-                :body body
+                :body (:body args)
                 :headers (:headers conn)
                 :connection-timeout (:connection-timeout conn)
                 :read-timeout (:read-timeout conn))))
@@ -34,7 +44,6 @@
          :exception ag-error)))
   (let [code (status agent)
         msg (message agent)]
-    (print code "\n")
     (if-not (some #(= % code) expected)
       (raise
        :type :presque-error
@@ -43,9 +52,10 @@
        )))
   true)
 
-(defn add-job
-  [conn queue job]
-  (let [agent (agent-request (str "q/" queue) "POST" conn (json-str job))]
+(defn create-job
+  [conn queue job & options]
+  (let [url (str "q/" queue)
+        agent (agent-request url "POST" conn :body (json-str job) :params options)]
     (check-return-code agent [201] "Error %s (%s) adding job: %s")
     true))
 
@@ -55,21 +65,20 @@
     (check-return-code agent [204] "Error %s (%s) resetting queue: %s")
     true))
 
-(defn queue-info
+(defn queue-size
   [conn queue]
-  (let [agent (agent-request (str "j/" queue) "GET" conn)]
-    (check-return-code agent [204] "Error %s (%s) getting info on queue: %s")
-    true))
+  (let [agent (agent-request (str "status/" queue) "GET" conn)]
+    (check-return-code agent [200] "Error %s (%s) getting  size of queue: %s")
+    (read-json-body (string agent))))
 
-(defn get-job
-  [conn queue]
+(defn fetch-job
+  [conn queue & options]
   (let [agent (agent-request (str "q/" queue)
                              "GET"
-                             conn)]
+                             conn
+                             :params options)]
     (check-return-code agent [200 404] "Error %s (%s) getting job: %s")
-    (await-for 1000 agent)
     (let [body (read-json-body (string agent))]
       (if (= (status agent) 200)
         body
         nil))))
-
