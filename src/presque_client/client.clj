@@ -32,7 +32,7 @@
 
 (defn check-return-code
   [agent expected fmt]
-  (await-for 5000 agent)
+  (await agent)
   (let [ag-error (agent-error agent)]
     (if ag-error 
         (raise
@@ -79,3 +79,23 @@
       (if (= (status agent) 200)
         body
         nil))))
+
+(defn queue-status
+  [conn queue]
+  (let [agent (agent-request (str "control/" queue) "GET" conn)]
+    (check-return-code agent [200] "Error %s (%s) getting queue status: %s")
+    (json/decode-from-str (string agent))))
+
+(defn change-queue-status
+  [conn queue status]
+  (let [agent (agent-request (str "control/" queue) "POST" conn :body (json/encode-to-str {:status status}))]
+    (check-return-code agent [200] "Error %s (%s) getting  changing status of queue: %s")
+    (json/decode-from-str (string agent))))
+
+(defn start-queue
+  [conn queue]
+  (change-queue-status conn queue "start"))
+
+(defn stop-queue
+  [conn queue]
+  (change-queue-status conn queue "stop"))
