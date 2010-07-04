@@ -1,7 +1,7 @@
 (ns presque-client.client
   (:use [clojure.contrib.http.agent :exclude [bytes]]
-        [clojure.contrib.json]
-        [clojure.contrib.condition]))
+        [clojure.contrib.condition])
+  (:require [org.danlarkin.json :as json]))
 
 (defn format-params
   [params]
@@ -30,10 +30,6 @@
                 :connection-timeout (:connection-timeout conn)
                 :read-timeout (:read-timeout conn))))
 
-(defn read-json-body
-  [body]
-  (read-json body true false nil))
-
 (defn check-return-code
   [agent expected fmt]
   (await-for 5000 agent)
@@ -46,16 +42,17 @@
         msg (message agent)]
     (if-not (some #(= % code) expected)
       (raise
-       :type :presque-error
+       :type :code-error
        :agent agent
-;       :message (format fmt code msg (:error (read-json-body (string agent))))
+;      :message (format fmt code msg (:error (if (string agent) (json/decode-from-str (string agent)) nil)))
+       :code code
        )))
   true)
 
 (defn create-job
   [conn queue job & options]
   (let [url (str "q/" queue)
-        agent (agent-request url "POST" conn :body (json-str job) :params options)]
+        agent (agent-request url "POST" conn :body (json/encode-to-str job) :params options)]
     (check-return-code agent [201] "Error %s (%s) adding job: %s")
     true))
 
@@ -69,7 +66,7 @@
   [conn queue]
   (let [agent (agent-request (str "status/" queue) "GET" conn)]
     (check-return-code agent [200] "Error %s (%s) getting  size of queue: %s")
-    (read-json-body (string agent))))
+    (json/decode-from-str (string agent))))
 
 (defn fetch-job
   [conn queue & options]
@@ -78,7 +75,7 @@
                              conn
                              :params options)]
     (check-return-code agent [200 404] "Error %s (%s) getting job: %s")
-    (let [body (read-json-body (string agent))]
+    (let [body (json/decode-from-str (string agent))]
       (if (= (status agent) 200)
         body
         nil))))
