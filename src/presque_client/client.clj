@@ -51,10 +51,15 @@
 
 (defn send-job
   [conn queue job method & options]
-  (let [url (str "q/" queue)
-        agent (agent-request url method conn :body (json/encode-to-str job) :params options)]
+  (let [batch (if (vector? job) true false)
+        url (str (if batch "qb/" "q/") queue)
+        agent (agent-request url method conn :body (json/encode-to-str (if batch { :jobs job } job)) :params options)]
     (check-return-code agent [201] "Error %s (%s) adding job: %s")
     true))
+
+(defn create-jobs
+    [conn queue job & options]
+    (send-job conn queue job "POST" options))
 
 (defn create-job
   [conn queue job & options]
@@ -76,17 +81,31 @@
     (check-return-code agent [200] "Error %s (%s) getting  size of queue: %s")
     (json/decode-from-str (string agent))))
 
-(defn fetch-job
-  [conn queue & options]
-  (let [agent (agent-request (str "q/" queue)
+(defn get-jobs
+  [conn queue batch-size & options]
+  (let [batch (if (> batch-size 1) true false)
+        params (if batch (conj options batch-size :batch_size) options)
+        agent (agent-request (str (if batch "qb/" "q/") queue)
                              "GET"
                              conn
-                             :params options)]
+                             :params params)]
     (check-return-code agent [200 404] "Error %s (%s) getting job: %s")
     (let [body (json/decode-from-str (string agent))]
       (if (= (status agent) 200)
         body
         nil))))
+
+(defn fetch-job
+  [conn queue & options]
+  (get-jobs conn queue 1 options))
+
+(defn fetch-jobs
+  [conn queue batch-size & options]
+  (let [jobs-str (get-jobs conn queue batch-size options)]
+    (if (nil? jobs-str)
+      []
+      ;; TODO - hack to decode json in json... fix later?
+      (apply vector (map #(json/decode-from-str %) jobs-str )))))
 
 (defn queue-status
   [conn queue]
