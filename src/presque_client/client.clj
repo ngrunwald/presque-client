@@ -32,7 +32,7 @@
 
 (defn check-return-code
   [agent expected fmt]
-  (await agent)
+  (await-for 5000  agent)
   (let [ag-error (agent-error agent)]
     (if ag-error 
         (raise
@@ -49,12 +49,20 @@
        )))
   true)
 
-(defn create-job
-  [conn queue job & options]
+(defn send-job
+  [conn queue job method & options]
   (let [url (str "q/" queue)
-        agent (agent-request url "POST" conn :body (json/encode-to-str job) :params options)]
+        agent (agent-request url method conn :body (json/encode-to-str job) :params options)]
     (check-return-code agent [201] "Error %s (%s) adding job: %s")
     true))
+
+(defn create-job
+  [conn queue job & options]
+  (send-job conn queue job "POST" options))
+
+(defn failed-job
+  [conn queue job & options]
+  (send-job conn queue job "PUT" options))
 
 (defn reset-queue
   [conn queue]
