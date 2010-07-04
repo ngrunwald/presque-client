@@ -107,3 +107,15 @@
 (defn stop-queue
   [conn queue]
   (change-queue-status conn queue "stop"))
+
+(defn queue-info
+  [conn queue]
+  (let [agent (agent-request (str "j/" queue) "GET" conn)]
+    (check-return-code agent [200] "Error %s (%s) getting queue info: %s")
+    (json/decode-from-str (string agent))))
+
+(defn list-queues
+  [conn]
+  (let [agent (agent-request (str "status/") "GET" conn)]
+    (check-return-code agent [200] "Error %s (%s) getting queues list: %s")
+    (json/decode-from-str (string agent))))
