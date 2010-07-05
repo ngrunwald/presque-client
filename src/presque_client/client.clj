@@ -1,6 +1,6 @@
 (ns
     #^{:author "Nils Grunwald"
-       :doc "Clojure client for preque REST API"}
+       :doc "Clojure client for Presque REST API"}
   presque-client.client
   (:use [clojure.contrib.http.agent :exclude [bytes]])
   (:require [org.danlarkin.json :as json]))
@@ -13,9 +13,9 @@
   
 
 (defn connect-presque
-  [& [url headers]]
+  [{url :url headers :headers worker-id :worker-id}]
   {:base-url (or url "http://localhost:5000/")
-   :headers (or headers {"Content-Type" "application/json"})
+   :headers (or headers {"Content-Type" "application/json", "X-presque-workerid" (or worker-id "clj-worker")})
    :connect-timeout 1000
    :read-timeout 5000})
 
@@ -100,8 +100,19 @@
   (let [jobs-str (get-jobs conn queue batch-size options)]
     (if (nil? jobs-str)
       []
-      ;; TODO - hack to decode json in json... fix later?
       (apply vector (map #(json/decode-from-str %) jobs-str )))))
+
+(defn register-worker
+  [conn queue]
+  (let [agent (agent-request (str "w/" queue) "POST" conn)]
+    (check-return-code agent [201] "Error %d (%s) registering worker: ")
+    true))
+
+(defn unregister-worker
+  [conn queue]
+  (let [agent (agent-request (str "w/" queue) "DELETE" conn)]
+    (check-return-code agent [204] "Error %d (%s) unregistering worker: ")
+    true))
 
 (defn queue-status
   [conn queue]
