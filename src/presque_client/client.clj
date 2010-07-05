@@ -1,6 +1,8 @@
-(ns presque-client.client
-  (:use [clojure.contrib.http.agent :exclude [bytes]]
-        [clojure.contrib.condition])
+(ns
+    #^{:author "Nils Grunwald"
+       :doc "Clojure client for preque REST API"}
+  presque-client.client
+  (:use [clojure.contrib.http.agent :exclude [bytes]])
   (:require [org.danlarkin.json :as json]))
 
 (defn format-params
@@ -35,18 +37,12 @@
   (await-for 5000  agent)
   (let [ag-error (agent-error agent)]
     (if ag-error 
-        (raise
-         :type :connection-error
-         :exception ag-error)))
+        (throw ag-error)))
   (let [code (status agent)
         msg (message agent)]
     (if-not (some #(= % code) expected)
-      (raise
-       :type :code-error
-       :agent agent
-;      :message (format fmt code msg (:error (if (string agent) (json/decode-from-str (string agent)) nil)))
-       :code code
-       )))
+      (throw (java.net.ConnectException. (str (format fmt code msg) (if (string agent) (:error (json/decode-from-str (string agent))) nil))))
+       ))
   true)
 
 (defn send-job
@@ -54,7 +50,7 @@
   (let [batch (if (vector? job) true false)
         url (str (if batch "qb/" "q/") queue)
         agent (agent-request url method conn :body (json/encode-to-str (if batch { :jobs job } job)) :params options)]
-    (check-return-code agent [201] "Error %s (%s) adding job: %s")
+    (check-return-code agent [201] "Error %d (%s) adding job: ")
     true))
 
 (defn create-jobs
@@ -72,13 +68,13 @@
 (defn reset-queue
   [conn queue]
   (let [agent (agent-request (str "q/" queue) "DELETE" conn)]
-    (check-return-code agent [204] "Error %s (%s) resetting queue: %s")
+    (check-return-code agent [204] "Error %d (%s) resetting queue: ")
     true))
 
 (defn queue-size
   [conn queue]
   (let [agent (agent-request (str "status/" queue) "GET" conn)]
-    (check-return-code agent [200] "Error %s (%s) getting  size of queue: %s")
+    (check-return-code agent [200] "Error %d (%s) getting  size of queue: ")
     (json/decode-from-str (string agent))))
 
 (defn get-jobs
@@ -89,7 +85,7 @@
                              "GET"
                              conn
                              :params params)]
-    (check-return-code agent [200 404] "Error %s (%s) getting job: %s")
+    (check-return-code agent [200 404] "Error %d (%s) getting job: ")
     (let [body (json/decode-from-str (string agent))]
       (if (= (status agent) 200)
         body
@@ -110,13 +106,13 @@
 (defn queue-status
   [conn queue]
   (let [agent (agent-request (str "control/" queue) "GET" conn)]
-    (check-return-code agent [200] "Error %s (%s) getting queue status: %s")
+    (check-return-code agent [200] "Error %d (%s) getting queue status: ")
     (json/decode-from-str (string agent))))
 
 (defn change-queue-status
   [conn queue status]
   (let [agent (agent-request (str "control/" queue) "POST" conn :body (json/encode-to-str {:status status}))]
-    (check-return-code agent [200] "Error %s (%s) getting  changing status of queue: %s")
+    (check-return-code agent [200] "Error %d (%s) getting  changing status of queue: ")
     (json/decode-from-str (string agent))))
 
 (defn start-queue
@@ -130,11 +126,11 @@
 (defn queue-info
   [conn queue]
   (let [agent (agent-request (str "j/" queue) "GET" conn)]
-    (check-return-code agent [200] "Error %s (%s) getting queue info: %s")
+    (check-return-code agent [200] "Error %d (%s) getting queue info: ")
     (json/decode-from-str (string agent))))
 
 (defn list-queues
   [conn]
   (let [agent (agent-request (str "status/") "GET" conn)]
-    (check-return-code agent [200] "Error %s (%s) getting queues list: %s")
+    (check-return-code agent [200] "Error %d (%s) getting queues list: ")
     (json/decode-from-str (string agent))))
