@@ -102,6 +102,24 @@
       []
       (apply vector (map #(json/decode-from-str %) jobs-str )))))
 
+(defn queue-stats
+  [conn queue]
+  (let [agent (agent-request (str "w/" queue :queue_name queue) "GET" conn)]
+    (check-return-code agent [200] "Error %d (%s) getting queue stats: ")
+    (json/decode-from-str (string agent))))
+
+(defn worker-stats
+  [conn worker-id]
+  (let [agent (agent-request (str "w/" :worker_id worker-id) "GET" conn)]
+    (check-return-code agent [200] "Error %d (%s) getting worker stats: ")
+    (json/decode-from-str (string agent))))
+
+(defn workers-stats
+  [conn]
+  (let [agent (agent-request (str "w/") "GET" conn)]
+    (check-return-code agent [200] "Error %d (%s) getting workers stats: ")
+    (json/decode-from-str (string agent))))
+
 (defn register-worker
   [conn queue]
   (let [agent (agent-request (str "w/" queue) "POST" conn)]
